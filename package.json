@@ -19,7 +19,6 @@
     "lodash": "^4.17.21",
     "multicast-dns": "^7.2.2",
     "node-fetch": "^2.6.1",
-    "prompts": "^2.4.1",
-    "yesno": "^0.3.1"
+    "prompts": "^2.4.1"
   }
 }
