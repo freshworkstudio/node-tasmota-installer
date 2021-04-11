@@ -7,6 +7,7 @@ const mdns = require("multicast-dns")()
 const axios = require("axios")
 const ip = require("ip")
 const prompts = require("prompts")
+const prettyBytes = require('pretty-bytes');
 
 
 let localIp = ip.address()
@@ -18,11 +19,31 @@ const app = express()
 const PORT = 3123
 const publicFolder = "./public"
 const downloadUrl = "https://ota.tasmota.com/tasmota/release/tasmota-lite.bin"
+let tasmotaBinSize = 500000;
 
 const homedir = require('os').homedir();
 let publicFolderPath = require('path').join(homedir, '.config/tasmota-installer/' + publicFolder);
 fs.mkdirSync(publicFolderPath, {recursive: true});
 
+app.use(function (req, res, next) {
+    let range = req.header('Range');
+    if (typeof range === 'undefined') {
+        next();
+        return;
+    }
+    let bytesSent = parseInt(req.header('Range').replace(/bytes=(([0-9])*)+-(([0-9])*)/g, '$3'));
+    let percentage = ( Math.round((bytesSent/tasmotaBinSize)*100) );
+    console.log(percentage + '% - ' + prettyBytes(bytesSent) + ' of ' + prettyBytes(tasmotaBinSize));
+
+    if (percentage >= 95) {
+        setTimeout(() => {
+            console.log('🚀 Firmware uploaded successfully.')
+            console.log('The device may be rebooting right now. You should see "tasmota-xxxxx" wifi network available to connect in a few moment.')
+            process.exit(0)
+        }, 5000);
+    }
+    next();
+});
 
 app.get("/", (req, res) => {
     res.send("Hello World!")
@@ -61,8 +82,6 @@ let run = async () => {
     await unlockOta(sonoffIp)
     await waitAsync(10000)
     await updateFirmware(sonoffIp)
-
-    process.exit(0)
 }
 
 let confirmIsReady = async () => {
@@ -126,9 +145,10 @@ let updateFirmware = async (sonoffIp) => {
     let url = `http://${sonoffIp}:8081/zeroconf/ota_flash`
     let response = await axios.post(url, payload)
     if (response.data.error===0) {
-        console.log("\n\n🚀 Firmware uploaded!")
         console.log("The device should be upgrading right now. Please wait about a minute until the device is rebooted")
         console.log("You should see Tasmota wifi network if everything went OK.")
+        console.log("Please, do not close this window in the next minute or so, until you see Tasmota Wifi Network")
+        console.log('');
     } else {
         console.log("❌ Error uploading OTA upgrade", response.data)
     }
@@ -136,6 +156,7 @@ let updateFirmware = async (sonoffIp) => {
 
 let unlockOta = async (sonoffIp) => {
     let url = `http://${sonoffIp}:8081/zeroconf/info`
+    console.log("")
     console.log("Connecting to the device API to check its status...  (POST " + url + ")")
     let axiosInstance = axios.create({ timeout: 10000 })
     let response = null
@@ -232,8 +253,10 @@ let downloadLatestTasmota = async () => {
     let tasmotaLiteFilePath = publicFolderPath + "/tasmota-lite.bin"
     await download(downloadUrl, tasmotaLiteFilePath)
     tasmotaLiteHash = await fileHash(tasmotaLiteFilePath, "sha256")
-    console.log(`️👌 tasmota-lite.bin downloaded successfully at ${tasmotaLiteFilePath} with checksum ${tasmotaLiteHash}`)
-
+    let statSync = fs.statSync(tasmotaLiteFilePath)
+    tasmotaBinSize = statSync.size;
+    let prettySize = prettyBytes(tasmotaBinSize);
+    console.log(`👌 Downloaded ${prettySize} successfully at ${tasmotaLiteFilePath}`)
 }
 
 

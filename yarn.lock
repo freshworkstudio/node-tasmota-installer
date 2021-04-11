@@ -328,6 +328,11 @@ path-to-regexp@0.1.7:
   resolved "https://registry.npmjs.org/path-to-regexp/-/path-to-regexp-0.1.7.tgz"
   integrity sha1-32BBeABfUi8V60SQ5yR6G/qmf4w=
 
+pretty-bytes@^5.6.0:
+  version "5.6.0"
+  resolved "https://registry.yarnpkg.com/pretty-bytes/-/pretty-bytes-5.6.0.tgz#356256f643804773c82f64723fe78c92c62beaeb"
+  integrity sha512-FFw039TmrBqFK8ma/7OL3sDz/VytdtJr044/QUJtH0wK9lb9jLq9tJyIxUwtQJHwar2BqtiA4iCWSwo9JLkzFg==
+
 prompts@^2.4.1:
   version "2.4.1"
   resolved "https://registry.yarnpkg.com/prompts/-/prompts-2.4.1.tgz#befd3b1195ba052f9fd2fde8a486c4e82ee77f61"
@@ -455,8 +460,3 @@ vary@~1.1.2:
   version "1.1.2"
   resolved "https://registry.npmjs.org/vary/-/vary-1.1.2.tgz"
   integrity sha1-IpnwLG3tMNSllhsLn3RSShj2NPw=
-
-yesno@^0.3.1:
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/yesno/-/yesno-0.3.1.tgz#3b2150158ee9b3f192a42313dd189c439f26c0ba"
-  integrity sha512-7RbCXegyu6DykWPWU0YEtW8gFJH8KBL2d5l2fqB0XpkH0Y9rk59YSSWpzEv7yNJBGAouPc67h3kkq0CZkpBdFw==
