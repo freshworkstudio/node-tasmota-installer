@@ -6,7 +6,6 @@ const crypto = require("crypto")
 const mdns = require("multicast-dns")()
 const axios = require("axios")
 const ip = require("ip")
-const yesno = require("yesno")
 const prompts = require("prompts")
 
 
@@ -20,10 +19,15 @@ const PORT = 3123
 const publicFolder = "./public"
 const downloadUrl = "https://ota.tasmota.com/tasmota/release/tasmota-lite.bin"
 
+const homedir = require('os').homedir();
+let publicFolderPath = require('path').join(homedir, '.config/tasmota-installer/' + publicFolder);
+fs.mkdirSync(publicFolderPath, {recursive: true});
+
+
 app.get("/", (req, res) => {
     res.send("Hello World!")
 })
-app.use(express.static("public"))
+app.use(express.static(publicFolderPath))
 
 app.listen(PORT, () => {
     console.log(`Server listening on port: ${PORT}`)
@@ -42,23 +46,23 @@ let run = async () => {
     let sonoffIp = null
     try {
         sonoffIp = await findSonoffIpViaMdns()
-        let confirmation = await prompts({ name: 'confirm', type: "confirm", initial: true, message: `Sonoff device found automatically with IP: ${sonoffIp}. Is that OK? (if you want to set the IP, say no)` })
+        let confirmation = await prompts({ name: 'confirm', type: "confirm", initial: true, message: `Sonoff device found automatically with IP: ${sonoffIp}. Is that OK? (if you want to set the IP manually, say no)` })
         if (!confirmation.confirm) {
-            let manualIp = await prompts({ name: 'ip', type: "text", initial: sonoffIp, message: `What si the local IP of the sonoff device? `})
+            let manualIp = await prompts({ name: 'ip', type: "text", initial: sonoffIp, message: `What is the local IP of the Sonoff device? `})
             sonoffIp = manualIp.ip;
         }
     } catch (e) {
         console.log('\n❌ I could not find a sonoff device on this network. Are you sure it is connected?')
-        let manualIp = await prompts({ name: 'ip', type: "text", message: `What si the local IP of the sonoff device? `})
+        let manualIp = await prompts({ name: 'ip', type: "text", message: `What is the local IP of the Sonoff device? `})
         sonoffIp = manualIp.ip;
     }
 
-    return;
     await downloadLatestTasmota()
     await unlockOta(sonoffIp)
     await waitAsync(10000)
     await updateFirmware(sonoffIp)
 
+    process.exit(0)
 }
 
 let confirmIsReady = async () => {
@@ -79,7 +83,7 @@ let confirmIsReady = async () => {
     console.log("\nGreat! Now, please enable REST API mode on the device: " + "\n" +
             "1) press the device button for 5 seconds" + "\n" +
             "2) wait about 4 seconds" + "\n" +
-            "3) press for 5 more seconds.  The device will be blinking." + "\n" +
+            "3) press for 5 more seconds.  The device will be blinking continuously." + "\n" +
             "4) Now, you should be able to connect to a wifi network called ITEAD-xxxxx.  Connect to Sonoff wifi access point (password is 12345678)" + "\n" +
             "5) Once connected to the device wifi network, visit http://10.7.7.1 and set your wifi credentials in the web form. Make sure that Sonoff and this computer are on the same network" + "\n")
     response = await prompts({
@@ -118,19 +122,21 @@ let updateFirmware = async (sonoffIp) => {
         },
     }
 
-    console.log("Firmware uploading....", payload)
+    console.log("Uploading tasmota...", payload)
     let url = `http://${sonoffIp}:8081/zeroconf/ota_flash`
     let response = await axios.post(url, payload)
     if (response.data.error===0) {
-        console.log("Firmware uploaded. Device should be upgrading right now. Please wait until the devices is rebooted")
+        console.log("\n\n🚀 Firmware uploaded!")
+        console.log("The device should be upgrading right now. Please wait about a minute until the devices is rebooted")
+        console.log("You should see Tasmota wifi network if everything went OK.")
     } else {
-        console.log("Error uploading ota upgrade", response.data)
+        console.log("❌ Error uploading OTA upgrade", response.data)
     }
 }
 
 let unlockOta = async (sonoffIp) => {
     let url = `http://${sonoffIp}:8081/zeroconf/info`
-    console.log("Connecting to the device API to check status...  (POST " + url + ")")
+    console.log("Connecting to the device API to check its status...  (POST " + url + ")")
     let axiosInstance = axios.create({ timeout: 10000 })
     let response = null
     try {
@@ -139,7 +145,16 @@ let unlockOta = async (sonoffIp) => {
             data: {},
         })
     } catch (e) {
-        throw new Error(`Ocurrió un error al solicitar el estado del dispoisitvo usando el API ${e.message}`)
+        console.log(`❌ An error happened getting the information from the device through its API: ${e.message}`);
+        console.log('Are you sure the device is in DIY Mode and running firmware version 3.6?');
+        console.log('Maybe: \n' +
+                '- Devices is not in the same network\n' +
+                '- Device is not running firmware version 3.6\n' +
+                '- Device is powered off\n' +
+                '- Devices is not on DIY Mode\n' +
+                '\n' +
+                'Try rebooting the device, and start again');
+        process.exit(0)
     }
 
 
@@ -211,13 +226,13 @@ let findSonoffIpViaMdns = async () => {
 }
 
 let downloadLatestTasmota = async () => {
-    console.log("Getting latest tasmota-lite.bin")
+    console.log("⚡️ Downloading latest tasmota-lite.bin file")
 
 
-    let tasmotaLiteFilePath = publicFolder + "/tasmota-lite.bin"
+    let tasmotaLiteFilePath = publicFolderPath + "/tasmota-lite.bin"
     await download(downloadUrl, tasmotaLiteFilePath)
     tasmotaLiteHash = await fileHash(tasmotaLiteFilePath, "sha256")
-    console.log(`tasmota-lite.bin downloaded successfully at ${tasmotaLiteFilePath} with checksum ${tasmotaLiteHash}`)
+    console.log(`️👌 tasmota-lite.bin downloaded successfully at ${tasmotaLiteFilePath} with checksum ${tasmotaLiteHash}`)
 
 }
 
