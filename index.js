@@ -127,7 +127,7 @@ let updateFirmware = async (sonoffIp) => {
     let response = await axios.post(url, payload)
     if (response.data.error===0) {
         console.log("\n\n🚀 Firmware uploaded!")
-        console.log("The device should be upgrading right now. Please wait about a minute until the devices is rebooted")
+        console.log("The device should be upgrading right now. Please wait about a minute until the device is rebooted")
         console.log("You should see Tasmota wifi network if everything went OK.")
     } else {
         console.log("❌ Error uploading OTA upgrade", response.data)
