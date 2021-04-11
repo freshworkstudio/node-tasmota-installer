@@ -1,0 +1,22 @@
+{
+  "name": "node-tasmota-installer",
+  "version": "0.1.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "axios": "^0.21.1",
+    "express": "^4.17.1",
+    "express-range": "^2.0.1",
+    "lodash": "^4.17.21",
+    "mdns-resolver": "^1.1.0",
+    "multicast-dns": "^7.2.2",
+    "node-fetch": "^2.6.1",
+    "prompts": "^2.4.1",
+    "yesno": "^0.3.1"
+  }
+}
