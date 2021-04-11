@@ -16,3 +16,6 @@ Just run this command on your terminal and follow the wizard.
 ```bash
 npx tasmota-installer
 ```
+
+You should see something like this: 
+![image](https://user-images.githubusercontent.com/1103494/114299520-ba327c80-9a89-11eb-8dd5-b1e3e6847a88.png)
