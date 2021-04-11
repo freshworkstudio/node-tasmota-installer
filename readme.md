@@ -12,7 +12,7 @@ Make sure your device is running firmware version 3.6 or later. If not sure, pai
 
 This process should run on your computer. You just need [Node.js](https://nodejs.org/es/download/) installed. 
 
-Just
+Just run this command on your terminal and follow the wizard.  
 ```bash
 npx tasmota-installer
 ```
