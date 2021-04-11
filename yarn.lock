@@ -251,13 +251,6 @@ lodash@^4.17.21:
   resolved "https://registry.npmjs.org/lodash/-/lodash-4.17.21.tgz"
   integrity sha512-v2kDEe57lecTulaDIuNTPy3Ry4gLGJ6Z1O3vE1krgXZNrsQ+LFTGHVxVjcXPs17LhbZVGedAJv8XZ1tvj5FvSg==
 
-mdns-resolver@^1.1.0:
-  version "1.1.0"
-  resolved "https://registry.yarnpkg.com/mdns-resolver/-/mdns-resolver-1.1.0.tgz#eea376e636e7abdd7b00475a06012436678f3c49"
-  integrity sha512-7cOFw+ObFCcDfuuLXneEkNMeZw6m91PApKUKJq8QaiOYDkuVfr9/PbEauwPObBMWKkTIqSbbF/+PAcWBScIztA==
-  dependencies:
-    multicast-dns "^7.2.2"
-
 media-typer@0.3.0:
   version "0.3.0"
   resolved "https://registry.npmjs.org/media-typer/-/media-typer-0.3.0.tgz"
