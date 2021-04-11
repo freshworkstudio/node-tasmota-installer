@@ -16,7 +16,7 @@ let tasmotaLiteHash = null
 
 const app = express()
 
-const PORT = 3000
+const PORT = 3123
 const publicFolder = "./public"
 const downloadUrl = "https://ota.tasmota.com/tasmota/release/tasmota-lite.bin"
 
@@ -113,7 +113,7 @@ let updateFirmware = async (sonoffIp) => {
     let payload = {
         deviceid: "",
         data: {
-            downloadUrl: `http://${localIp}:3000/tasmota-lite.bin`,
+            downloadUrl: `http://${localIp}:${PORT}/tasmota-lite.bin`,
             sha256sum: tasmotaLiteHash,
         },
     }
