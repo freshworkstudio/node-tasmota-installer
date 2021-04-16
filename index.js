@@ -8,18 +8,30 @@ const axios = require("axios")
 const ip = require("ip")
 const prompts = require("prompts")
 const prettyBytes = require('pretty-bytes');
+const wifi = require('node-wifi');
 
 
 let localIp = ip.address()
 
 let tasmotaLiteHash = null
 
+
+// Initialize wifi module
+// Absolutely necessary even to set interface to null
+
+/*
+|--------------------------------------------------------------------------
+| Start
+|--------------------------------------------------------------------------
+*/
 const app = express()
 
 const PORT = 3123
 const publicFolder = "./public"
 const downloadUrl = "https://ota.tasmota.com/tasmota/release/tasmota-lite.bin"
 let tasmotaBinSize = 500000;
+let lastConnectedWifiNetwork = null;
+
 
 const homedir = require('os').homedir();
 let publicFolderPath = require('path').join(homedir, '.config/tasmota-installer/' + publicFolder);
@@ -55,14 +67,33 @@ app.listen(PORT, () => {
 
     run()
 })
-// lets query for an A record for 'brunhilde.local'
 
 let run = async () => {
-    let response = await confirmIsReady()
-    if (!response) {
-        process.exit(0)
-        return
+    let configuredAutomatically = false;
+    try {
+        let connection = await conectToWifi();
+        console.log('Connected to ' + connection.ssid + '. Waiting 5 seconds to configure the AP')
+        await waitAsync(5000);
+
+        await configureAp();
+
+        configuredAutomatically = true;
+    } catch (e) {
+        console.log('Error:', e)
     }
+    if (!configuredAutomatically) {
+        let response = await confirmIsReady()
+        if (!response) {
+            process.exit(0)
+            return
+        }
+    } else {
+        console.log('Waiting 25 seconds to let the device connect to your network');
+        await waitAsync(25000)
+    }
+
+
+
 
     let sonoffIp = null
     try {
@@ -301,5 +332,64 @@ function fileHash(filename, algorithm = "md5") {
 }
 
 
+let conectToWifi = () => {
+    return new Promise(async (resolve, reject) => {
 
+        let iface = process.platform === 'darwin' ?  'en1' : null;
+        wifi.init({
+            iface // network interface, choose a random wifi interface if set to null
+        });
+        let currentConnections = await wifi.getCurrentConnections();
+        if (Array.isArray(currentConnections)) {
+            lastConnectedWifiNetwork = currentConnections[0];
+            if (lastConnectedWifiNetwork.ssid.includes('ITEAD-')) {
+                console.log('Already connected to ITEAD network 👌')
+                lastConnectedWifiNetwork = null;
+                resolve(currentConnections[0]);
+                return;
+            }
+        }
+
+
+
+        console.log('Trying to found ITEAD wifi network')
+        // Scan networks
+        let networks = await wifi.scan()
+        let iteadNetwork = networks.find(x => x.ssid.includes('ITEAD-'))
+        if (typeof iteadNetwork === 'undefined') {
+            reject('ITEAD network not found. Networks found: ' + networks.map(x => x.ssid).join(', '));
+            return;
+        }
+
+        console.log('ITEAD wifi network found: ' + iteadNetwork.ssid + '. Trying to connect...')
+        await wifi.connect({ ssid: iteadNetwork.ssid, password: '12345678' });
+        resolve(iteadNetwork);
+    })
+
+}
+
+let configureAp = async () => {
+
+    let responses = await prompts([{
+        name: 'ssid',
+        type: "text",
+        initial: lastConnectedWifiNetwork === null? '' : lastConnectedWifiNetwork.ssid,
+        message: `What is your network wifi name?`,
+    }, {
+        name: 'password',
+        type: "password",
+        message: `What is your network wifi password?`,
+    }])
+
+    console.log('Sending wifi configuration to the device')
+    let response = await axios.post('http://10.10.7.1/ap_diy', {
+        password: responses.password,
+        ssid: responses.ssid
+    });
+    if (response.data.error === 0) {
+        console.log('Device configured successfully')
+        return response;
+    }
+    throw "Something went wrong configuring AP on Sonoff Device"
+}
 
