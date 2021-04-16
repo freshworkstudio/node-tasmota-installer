@@ -7,8 +7,8 @@ const mdns = require("multicast-dns")()
 const axios = require("axios")
 const ip = require("ip")
 const prompts = require("prompts")
-const prettyBytes = require('pretty-bytes');
-const wifi = require('node-wifi');
+const prettyBytes = require("pretty-bytes")
+const wifi = require("node-wifi")
 
 
 let localIp = ip.address()
@@ -20,42 +20,43 @@ let tasmotaLiteHash = null
 // Absolutely necessary even to set interface to null
 
 /*
-|--------------------------------------------------------------------------
-| Start
-|--------------------------------------------------------------------------
-*/
+ |--------------------------------------------------------------------------
+ | Start
+ |--------------------------------------------------------------------------
+ */
 const app = express()
 
 const PORT = 3123
 const publicFolder = "./public"
 const downloadUrl = "https://ota.tasmota.com/tasmota/release/tasmota-lite.bin"
-let tasmotaBinSize = 500000;
-let lastConnectedWifiNetwork = null;
+let tasmotaBinSize = 500000
+let lastConnectedWifiNetwork = null
+let lastSavedWifiCredentials = null
 
 
-const homedir = require('os').homedir();
-let publicFolderPath = require('path').join(homedir, '.config/tasmota-installer/' + publicFolder);
-fs.mkdirSync(publicFolderPath, {recursive: true});
+const homedir = require("os").homedir()
+let publicFolderPath = require("path").join(homedir, ".config/tasmota-installer/" + publicFolder)
+fs.mkdirSync(publicFolderPath, { recursive: true })
 
 app.use(function (req, res, next) {
-    let range = req.header('Range');
-    if (typeof range === 'undefined') {
-        next();
-        return;
+    let range = req.header("Range")
+    if (typeof range==="undefined") {
+        next()
+        return
     }
-    let bytesSent = parseInt(req.header('Range').replace(/bytes=(([0-9])*)+-(([0-9])*)/g, '$3'));
-    let percentage = ( Math.round((bytesSent/tasmotaBinSize)*100) );
-    console.log(percentage + '% - ' + prettyBytes(bytesSent) + ' of ' + prettyBytes(tasmotaBinSize));
+    let bytesSent = parseInt(req.header("Range").replace(/bytes=(([0-9])*)+-(([0-9])*)/g, "$3"))
+    let percentage = (Math.round((bytesSent / tasmotaBinSize) * 100))
+    console.log(percentage + "% - " + prettyBytes(bytesSent) + " of " + prettyBytes(tasmotaBinSize))
 
-    if (percentage >= 95) {
+    if (percentage >= 100) {
         setTimeout(() => {
-            console.log('🚀 Firmware uploaded successfully.')
-            console.log('The device may be rebooting right now. You should see "tasmota-xxxxx" wifi network available to connect in a few moment.')
-            process.exit(0)
-        }, 5000);
+            console.log("🚀 Firmware uploaded successfully.")
+            console.log("The device may be rebooting right now. You should see \"tasmota_xxxxx\" wifi network available to connect in a few moment.")
+            processDone();
+        }, 5000)
     }
-    next();
-});
+    next()
+})
 
 app.get("/", (req, res) => {
     res.send("Hello World!")
@@ -68,18 +69,52 @@ app.listen(PORT, () => {
     run()
 })
 
-let run = async () => {
-    let configuredAutomatically = false;
+let processDone = async () => {
+    let confirmation = await prompts({
+        name: "confirm",
+        type: "confirm",
+        initial: true,
+        message: `Do you want to configure tasmota wifi connection?`,
+    })
+    if (!confirmation.confirm) {
+        console.log('My job here is done. Exiting... ')
+        process.exit();
+    }
+
+    console.log("Waiting 20 seconds for tasmota to start its wifi manager")
     try {
-        let connection = await conectToWifi();
-        console.log('Connected to ' + connection.ssid + '. Waiting 5 seconds to configure the AP')
-        await waitAsync(5000);
-
-        await configureAp();
-
-        configuredAutomatically = true;
+        await waitAsync(20000);
+        await configureTasmota();
+        process.exit()
     } catch (e) {
-        console.log('Error:', e)
+        console.log(e);
+    }
+    return
+}
+
+
+let run = async () => {
+
+    let configuredAutomatically = false
+    try {
+        let connection = await connectToIteadWifi()
+        console.log("Connected to " + connection.ssid + ". Waiting 5 seconds to configure the AP")
+        await waitAsync(5000)
+
+        await configureIteadAp()
+
+        configuredAutomatically = true
+    } catch (e) {
+        console.log("Error: ", e)
+        try {
+
+            let result = await configureTasmota();
+            if (result) {
+                process.exit()
+            }
+        } catch (e) {
+            console.log('Error: ', e)
+        }
     }
     if (!configuredAutomatically) {
         let response = await confirmIsReady()
@@ -88,25 +123,37 @@ let run = async () => {
             return
         }
     } else {
-        console.log('Waiting 25 seconds to let the device connect to your network');
+        console.log("Waiting 25 seconds to let the device connect to your network")
         await waitAsync(25000)
     }
-
-
 
 
     let sonoffIp = null
     try {
         sonoffIp = await findSonoffIpViaMdns()
-        let confirmation = await prompts({ name: 'confirm', type: "confirm", initial: true, message: `Sonoff device found automatically with IP: ${sonoffIp}. Is that OK? (if you want to set the IP manually, say no)` })
+        let confirmation = await prompts({
+            name: "confirm",
+            type: "confirm",
+            initial: true,
+            message: `Sonoff device found automatically with IP: ${sonoffIp}. Is that OK? (if you want to set the IP manually, say no)`,
+        })
         if (!confirmation.confirm) {
-            let manualIp = await prompts({ name: 'ip', type: "text", initial: sonoffIp, message: `What is the local IP of the Sonoff device? `})
-            sonoffIp = manualIp.ip;
+            let manualIp = await prompts({
+                name: "ip",
+                type: "text",
+                initial: sonoffIp,
+                message: `What is the local IP of the Sonoff device? `,
+            })
+            sonoffIp = manualIp.ip
         }
     } catch (e) {
-        console.log('\n❌ I could not find a sonoff device on this network. Are you sure it is connected?')
-        let manualIp = await prompts({ name: 'ip', type: "text", message: `What is the local IP of the Sonoff device? `})
-        sonoffIp = manualIp.ip;
+        console.log("\n❌ I could not find a sonoff device on this network. Are you sure it is connected?")
+        let manualIp = await prompts({
+            name: "ip",
+            type: "text",
+            message: `What is the local IP of the Sonoff device? `,
+        })
+        sonoffIp = manualIp.ip
     }
 
     await downloadLatestTasmota()
@@ -122,7 +169,7 @@ let confirmIsReady = async () => {
     console.log("First, turn on your Sonoff Device... ")
     console.log("The device must be running the iTEAD firmware version 3.6 or later. Sonoff Mini R2 should come with that version, but Sonoff Mini v1 may not. If you are not sure, pair the device using the eWelink app as usual, and upgrade the official firmware there.")
     let response = await prompts({
-        name: 'confirm',
+        name: "confirm",
         type: "confirm",
         message: "Sonoff is running software version 3.6 or later?",
         initial: true,
@@ -137,7 +184,7 @@ let confirmIsReady = async () => {
             "4) Now, you should be able to connect to a wifi network called ITEAD-xxxxx.  Connect to Sonoff wifi access point (password is 12345678)" + "\n" +
             "5) Once connected to the device wifi network, visit http://10.7.7.1 and set your wifi credentials in the web form. Make sure that Sonoff and this computer are on the same network" + "\n")
     response = await prompts({
-        name: 'confirm',
+        name: "confirm",
         type: "confirm",
         initial: true,
         message: "Is the Sonoff device connected to your wifi in API REST mode?",
@@ -179,7 +226,7 @@ let updateFirmware = async (sonoffIp) => {
         console.log("The device should be upgrading right now. Please wait about a minute until the device is rebooted")
         console.log("You should see Tasmota wifi network if everything went OK.")
         console.log("Please, do not close this window in the next minute or so, until you see Tasmota Wifi Network")
-        console.log('');
+        console.log("")
     } else {
         console.log("❌ Error uploading OTA upgrade", response.data)
     }
@@ -197,15 +244,15 @@ let unlockOta = async (sonoffIp) => {
             data: {},
         })
     } catch (e) {
-        console.log(`❌ An error happened getting the information from the device through its API: ${e.message}`);
-        console.log('Are you sure the device is in DIY Mode and running firmware version 3.6?');
-        console.log('Maybe: \n' +
-                '- Devices is not in the same network\n' +
-                '- Device is not running firmware version 3.6\n' +
-                '- Device is powered off\n' +
-                '- Devices is not on DIY Mode\n' +
-                '\n' +
-                'Try rebooting the device, and start again');
+        console.log(`❌ An error happened getting the information from the device through its API: ${e.message}`)
+        console.log("Are you sure the device is in DIY Mode and running firmware version 3.6?")
+        console.log("Maybe: \n" +
+                "- Devices is not in the same network\n" +
+                "- Device is not running firmware version 3.6\n" +
+                "- Device is powered off\n" +
+                "- Devices is not on DIY Mode\n" +
+                "\n" +
+                "Try rebooting the device, and start again")
         process.exit(0)
     }
 
@@ -285,8 +332,8 @@ let downloadLatestTasmota = async () => {
     await download(downloadUrl, tasmotaLiteFilePath)
     tasmotaLiteHash = await fileHash(tasmotaLiteFilePath, "sha256")
     let statSync = fs.statSync(tasmotaLiteFilePath)
-    tasmotaBinSize = statSync.size;
-    let prettySize = prettyBytes(tasmotaBinSize);
+    tasmotaBinSize = statSync.size
+    let prettySize = prettyBytes(tasmotaBinSize)
     console.log(`👌 Downloaded ${prettySize} successfully at ${tasmotaLiteFilePath}`)
 }
 
@@ -332,64 +379,124 @@ function fileHash(filename, algorithm = "md5") {
 }
 
 
-let conectToWifi = () => {
+let connectToIteadWifi = () => {
+    return connectToWifiThatIncludes('ITEAD-', 'ITEAD');
+
+}
+
+let connectToWifiThatIncludes = (includes, name) => {
     return new Promise(async (resolve, reject) => {
 
-        let iface = process.platform === 'darwin' ?  'en1' : null;
+        let iface = process.platform==="darwin" ? "en1":null
         wifi.init({
-            iface // network interface, choose a random wifi interface if set to null
-        });
-        let currentConnections = await wifi.getCurrentConnections();
+            iface, // network interface, choose a random wifi interface if set to null
+        })
+        let currentConnections = await wifi.getCurrentConnections()
         if (Array.isArray(currentConnections)) {
-            lastConnectedWifiNetwork = currentConnections[0];
-            if (lastConnectedWifiNetwork.ssid.includes('ITEAD-')) {
-                console.log('Already connected to ITEAD network 👌')
-                lastConnectedWifiNetwork = null;
-                resolve(currentConnections[0]);
-                return;
+            lastConnectedWifiNetwork = currentConnections[0]
+            if (lastConnectedWifiNetwork.ssid.includes(includes)) {
+                console.log("Already connected to " + name + " network 👌")
+                lastConnectedWifiNetwork = null
+                resolve(currentConnections[0])
+                return
             }
         }
 
 
+        console.log("Trying to find " + name + " wifi network")
 
-        console.log('Trying to found ITEAD wifi network')
         // Scan networks
         let networks = await wifi.scan()
-        let iteadNetwork = networks.find(x => x.ssid.includes('ITEAD-'))
-        if (typeof iteadNetwork === 'undefined') {
-            reject('ITEAD network not found. Networks found: ' + networks.map(x => x.ssid).join(', '));
-            return;
+        let tasmotaNetwork = networks.find(x => x.ssid.includes(includes))
+        if (typeof tasmotaNetwork==="undefined") {
+            reject(name + " network not found. Networks found: " + networks.map(x => x.ssid).join(", "))
+            return
         }
 
-        console.log('ITEAD wifi network found: ' + iteadNetwork.ssid + '. Trying to connect...')
-        await wifi.connect({ ssid: iteadNetwork.ssid, password: '12345678' });
-        resolve(iteadNetwork);
+        console.log(name + " wifi network found: " + tasmotaNetwork.ssid + ". Trying to connect...")
+        await wifi.connect({ ssid: tasmotaNetwork.ssid, password: "12345678" })
+        resolve(tasmotaNetwork)
     })
+}
+let connectToSonoffWifi = () => {
+    return connectToWifiThatIncludes('tasmota_', 'Tasmota');
 
 }
 
-let configureAp = async () => {
+let configureIteadAp = async () => {
 
     let responses = await prompts([{
-        name: 'ssid',
+        name: "ssid",
         type: "text",
-        initial: lastConnectedWifiNetwork === null? '' : lastConnectedWifiNetwork.ssid,
+        initial: lastConnectedWifiNetwork===null ? "":lastConnectedWifiNetwork.ssid,
         message: `What is your network wifi name?`,
     }, {
-        name: 'password',
+        name: "password",
         type: "password",
         message: `What is your network wifi password?`,
     }])
+    lastSavedWifiCredentials = responses
 
-    console.log('Sending wifi configuration to the device')
-    let response = await axios.post('http://10.10.7.1/ap_diy', {
+    console.log("Sending wifi configuration to the device")
+    let response = await axios.post("http://10.10.7.1/ap_diy", {
         password: responses.password,
-        ssid: responses.ssid
-    });
-    if (response.data.error === 0) {
-        console.log('Device configured successfully')
-        return response;
+        ssid: responses.ssid,
+    })
+    if (response.data.error===0) {
+        console.log("Device configured successfully")
+        return response
     }
     throw "Something went wrong configuring AP on Sonoff Device"
 }
 
+let configureTasmotaAp = async () => {
+    let responses = null
+    if (lastSavedWifiCredentials) {
+        responses = lastSavedWifiCredentials
+    } else {
+        responses = await prompts([{
+            name: "ssid",
+            type: "text",
+            initial: lastConnectedWifiNetwork===null ? "":lastConnectedWifiNetwork.ssid,
+            message: `What is your network wifi name?`,
+        }, {
+            name: "password",
+            type: "password",
+            message: `What is your network wifi password?`,
+        }])
+    }
+
+    console.log("Sending wifi configuration to the device")
+    await axios.get(" http://192.168.4.1/wi", {
+        params: {
+            s1: responses.ssid,
+            p1: responses.password,
+            s2: "",
+            p2: "****",
+            h: " %s-%04d",
+            c: "",
+            save: "",
+        },
+    })
+
+    return true
+}
+
+
+let configureTasmota = async () => {
+    await connectToSonoffWifi()
+    let confirmation = await prompts({
+        name: "confirm",
+        type: "confirm",
+        initial: true,
+        message: `Do you want to configure tasmota wifi connection?`,
+    })
+    if (!confirmation.confirm) {
+        return false
+    }
+    await waitAsync(3000);
+    await configureTasmotaAp()
+    await waitAsync(5000)
+
+    return true
+}
