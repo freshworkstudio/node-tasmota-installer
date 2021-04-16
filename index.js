@@ -392,7 +392,7 @@ let connectToWifiThatIncludes = (includes, name) => {
             iface, // network interface, choose a random wifi interface if set to null
         })
         let currentConnections = await wifi.getCurrentConnections()
-        if (Array.isArray(currentConnections)) {
+        if (Array.isArray(currentConnections) && currentConnections.length > 0) {
             lastConnectedWifiNetwork = currentConnections[0]
             if (lastConnectedWifiNetwork.ssid.includes(includes)) {
                 console.log("Already connected to " + name + " network 👌")
