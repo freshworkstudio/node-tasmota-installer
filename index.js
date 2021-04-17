@@ -9,12 +9,21 @@ const ip = require("ip")
 const prompts = require("prompts")
 const prettyBytes = require("pretty-bytes")
 const wifi = require("node-wifi")
+var piWifi = require('pi-wifi');
+var isPi = require('detect-rpi');
+const open = require('open');
 
+
+let iface = process.platform==="darwin" ? "en1":null
+wifi.init({
+    iface, // network interface, choose a random wifi interface if set to null
+})
 
 let localIp = ip.address()
 
 let tasmotaLiteHash = null
 
+let sonoffIp = null
 
 // Initialize wifi module
 // Absolutely necessary even to set interface to null
@@ -70,17 +79,6 @@ app.listen(PORT, () => {
 })
 
 let processDone = async () => {
-    let confirmation = await prompts({
-        name: "confirm",
-        type: "confirm",
-        initial: true,
-        message: `Do you want to configure tasmota wifi connection?`,
-    })
-    if (!confirmation.confirm) {
-        console.log('My job here is done. Exiting... ')
-        process.exit();
-    }
-
     console.log("Waiting 20 seconds for tasmota to start its wifi manager")
     try {
         await waitAsync(20000);
@@ -103,11 +101,15 @@ let run = async () => {
 
         await configureIteadAp()
 
+        //Connect to the configured network
+        console.log('Connecting to ' + lastSavedWifiCredentials.ssid + ' network')
+        await connectToWifi(lastSavedWifiCredentials.ssid, lastSavedWifiCredentials.password)
+        console.log('Connected.')
         configuredAutomatically = true
     } catch (e) {
         console.log("Error: ", e)
         try {
-
+            await waitAsync(2000)
             let result = await configureTasmota();
             if (result) {
                 process.exit()
@@ -123,12 +125,12 @@ let run = async () => {
             return
         }
     } else {
-        console.log("Waiting 25 seconds to let the device connect to your network")
-        await waitAsync(25000)
+        console.log("Waiting 20 seconds to let the device connect to your network too")
+        await waitAsync(20000)
     }
 
 
-    let sonoffIp = null
+    sonoffIp = null
     try {
         sonoffIp = await findSonoffIpViaMdns()
         let confirmation = await prompts({
@@ -384,29 +386,85 @@ let connectToIteadWifi = () => {
 
 }
 
-let connectToWifiThatIncludes = (includes, name) => {
+let getCurrentWifiConnection = () => {
     return new Promise(async (resolve, reject) => {
+        if (isPi()) {
+            piWifi.status('wlan0', function(err, networksArray) {
+                if (err) {
+                    reject(err.message);
+                }
+                if (Array.isArray(networksArray) && networksArray.length > 0) {
+                    return resolve(networksArray[0])
+                }
+                if (typeof networksArray.ssid === 'undefined') {
+                	return resolve(null)
+                }
+                return resolve(networksArray)
 
-        let iface = process.platform==="darwin" ? "en1":null
-        wifi.init({
-            iface, // network interface, choose a random wifi interface if set to null
-        })
-        let currentConnections = await wifi.getCurrentConnections()
-        if (Array.isArray(currentConnections) && currentConnections.length > 0) {
-            lastConnectedWifiNetwork = currentConnections[0]
-            if (lastConnectedWifiNetwork.ssid.includes(includes)) {
-                console.log("Already connected to " + name + " network 👌")
-                lastConnectedWifiNetwork = null
-                resolve(currentConnections[0])
-                return
+            });
+        } else {
+            let currentConnections = await wifi.getCurrentConnections()
+            if (Array.isArray(currentConnections) && currentConnections.length > 0) {
+                return resolve(currentConnections[0])
             }
+            return resolve(null)
         }
 
+
+    });
+
+}
+
+let scanNetworks = async () => {
+    if (isPi()) {
+        return new Promise((resolve, reject) => {
+            piWifi.scan(function(err, networks) {
+              if (err) {
+                reject(err.message);
+              }
+              if (!Array.isArray(networks)) {
+              	return resolve([])
+              }
+              return resolve(networks)
+            });
+        })
+    }
+    return await wifi.scan()
+}
+
+let connectToWifi = async (ssid, password) => {
+    if (isPi()) {
+        return new Promise((resolve, reject) => {
+            piWifi.connect(ssid, password, (err) => {
+              if (err) {
+                return reject(err.message);
+              }
+              resolve(true)
+            });
+        })
+    }
+    await wifi.connect({ ssid, password })
+}
+
+let connectToWifiThatIncludes = (includes, name) => {
+    return new Promise(async (resolve, reject) => {
+        let currentConnection = await getCurrentWifiConnection();
+        if (currentConnection !== null) {
+        	lastConnectedWifiNetwork = currentConnection;
+
+        	if (lastConnectedWifiNetwork.ssid.includes(includes)) {
+	            console.log("Already connected to " + name + " network 👌")
+	            lastConnectedWifiNetwork = null
+	            resolve(currentConnection)
+	            return
+	        }
+        }
 
         console.log("Trying to find " + name + " wifi network")
 
         // Scan networks
-        let networks = await wifi.scan()
+        let networks = await scanNetworks();
+
         let tasmotaNetwork = networks.find(x => x.ssid.includes(includes))
         if (typeof tasmotaNetwork==="undefined") {
             reject(name + " network not found. Networks found: " + networks.map(x => x.ssid).join(", "))
@@ -414,7 +472,7 @@ let connectToWifiThatIncludes = (includes, name) => {
         }
 
         console.log(name + " wifi network found: " + tasmotaNetwork.ssid + ". Trying to connect...")
-        await wifi.connect({ ssid: tasmotaNetwork.ssid, password: "12345678" })
+        await connectToWifi(tasmotaNetwork.ssid, "12345678")
         resolve(tasmotaNetwork)
     })
 }
@@ -489,14 +547,17 @@ let configureTasmota = async () => {
         name: "confirm",
         type: "confirm",
         initial: true,
-        message: `Do you want to configure tasmota wifi connection?`,
+        message: `Do you want to configure Tasmota wifi connection?`,
     })
+
     if (!confirmation.confirm) {
         return false
     }
     await waitAsync(3000);
     await configureTasmotaAp()
     await waitAsync(5000)
+    open('http://' + sonoffIp);
+    console.log('🚀 Process complete. Open tasmota web interface here: http://' + sonoffIp)
 
     return true
 }
