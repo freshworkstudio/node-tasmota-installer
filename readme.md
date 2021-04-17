@@ -8,6 +8,7 @@ Check out the demo video here: https://youtu.be/Lfz1EzgPUc4
 ### Devices tested: 
 - Sonoff Mini DIY
 - Sonoff Mini R2
+- Sonoff Basic R3
 
 Make sure your device is running firmware version 3.6 or later. If not sure, pair your device with ewelink app and upgrade from there on the settings page of your device. 
 
