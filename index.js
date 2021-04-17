@@ -96,8 +96,8 @@ let run = async () => {
     let configuredAutomatically = false
     try {
         let connection = await connectToIteadWifi()
-        console.log("Connected to " + connection.ssid + ". Waiting 5 seconds to configure the AP")
-        await waitAsync(5000)
+        console.log("Connected to " + connection.ssid + ". Waiting 12 seconds to configure the AP")
+        await waitAsync(12000)
 
         await configureIteadAp()
 
@@ -133,12 +133,18 @@ let run = async () => {
     sonoffIp = null
     try {
         sonoffIp = await findSonoffIpViaMdns()
-        let confirmation = await prompts({
-            name: "confirm",
-            type: "confirm",
-            initial: true,
-            message: `Sonoff device found automatically with IP: ${sonoffIp}. Is that OK? (if you want to set the IP manually, say no)`,
-        })
+        let confirmation = null;
+        if (configuredAutomatically) {
+            confirmation = {confirm : true};
+            console.log(`Sonoff device found automatically with IP: ${sonoffIp}`)
+        } else {
+            confirmation = await prompts({
+                name: "confirm",
+                type: "confirm",
+                initial: true,
+                message: `Sonoff device found automatically with IP: ${sonoffIp}. Is that OK? (if you want to set the IP manually, say no)`,
+            })
+        }
         if (!confirmation.confirm) {
             let manualIp = await prompts({
                 name: "ip",
@@ -556,8 +562,13 @@ let configureTasmota = async () => {
     await waitAsync(3000);
     await configureTasmotaAp()
     await waitAsync(5000)
-    open('http://' + sonoffIp);
-    console.log('🚀 Process complete. Open tasmota web interface here: http://' + sonoffIp)
+    if (sonoffIp !== null) {
+        open('http://' + sonoffIp);
+    }
+    console.log('🚀 Process complete.')
+    if (sonoffIp !== null) {
+        console.log('Open tasmota web interface here: http://' + sonoffIp);
+    }
 
     return true
 }
