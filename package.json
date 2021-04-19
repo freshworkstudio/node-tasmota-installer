@@ -1,6 +1,6 @@
 {
   "name": "tasmota-installer",
-  "version": "0.3.3",
+  "version": "0.3.4",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -24,6 +24,7 @@
     "open": "^8.0.6",
     "pi-wifi": "^1.2.0",
     "pretty-bytes": "^5.6.0",
-    "prompts": "^2.4.1"
+    "prompts": "^2.4.1",
+    "yargs": "^16.2.0"
   }
 }
