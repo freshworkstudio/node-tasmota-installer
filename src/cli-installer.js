@@ -149,7 +149,7 @@ class CliInstaller {
                 "2) wait about 4 seconds" + "\n" +
                 "3) press for 5 more seconds.  The device will be blinking continuously." + "\n" +
                 "4) Now, you should be able to connect to a wifi network called ITEAD-xxxxx.  Connect to Sonoff wifi access point (password is 12345678)" + "\n" +
-                "5) Once connected to the device wifi network, visit http://10.7.7.1 and set your wifi credentials in the web form. Make sure that Sonoff and this computer are on the same network" + "\n")
+                "5) Once connected to the device wifi network, visit http://10.10.7.1 and set your wifi credentials in the web form. Make sure that Sonoff and this computer are on the same network" + "\n")
 
         response = await prompts({
             name: "confirm",
