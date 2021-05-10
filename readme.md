@@ -18,7 +18,7 @@ This process should run on your computer. You just need [Node.js](https://nodejs
 
 Just run this command on your terminal and follow the wizard.  
 ```bash
-npx tasmota-installer
+npx tasmota-installer flash
 ```
 
 You should see something like this when everything went OK: 
