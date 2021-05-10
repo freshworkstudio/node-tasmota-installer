@@ -23,6 +23,9 @@ class CliInstaller {
 
         let configuredAutomatically = false
         if (wifiSearchStartup) {
+            console.log('===========================')
+            console.log('Checking if you already set a tasmota Device in DIY AP Mode, by searching for a ITED-XXXX wifi network nearby....')
+            console.log('===========================')
             try {
                 let connection = await wifiManager.connectToIteadWifi()
                 console.log("Connected to " + connection.ssid + ". Waiting 12 seconds to configure the AP")

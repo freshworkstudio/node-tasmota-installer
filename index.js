@@ -18,7 +18,7 @@ store.localIp = ip.address()
 let tasmotaLiteHash = null
 
 let argv = yargs(hideBin(process.argv))
-    .command('flash', 'Flash sonoff device with Tasmota')
+    .command(['flash', '$0'], 'Flash sonoff device with Tasmota')
     .option('port', {
         alias: 'p',
         type: 'number',
@@ -56,7 +56,6 @@ let argv = yargs(hideBin(process.argv))
         description: 'Prevent the script to search for itead and tasmota wifi networks on startup'
     })
     .help('h')
-    .demandCommand(1)
     .argv
 
 
@@ -114,7 +113,7 @@ function start(port, auto, updateBin, wifiSearchStartup) {
     app.use(express.static(store.publicFolderPath))
 
     app.listen(port, () => {
-        console.log(`Server listening on port: ${port}`)
+        // console.log(`Server listening on port: ${port}`)
 
         cliInstaller.run(auto, updateBin, port, wifiSearchStartup)
     })
